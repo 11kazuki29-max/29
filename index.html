@@ -320,13 +320,13 @@ async function fetchNews(query, apiKey) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       api_key: apiKey,
-      query: query + ' 日本語',
+      query: query + ' site:nikkei.com OR site:reuters.com/ja OR site:bloomberg.co.jp OR site:nhk.or.jp OR site:toyokeizai.net OR site:mainichi.jp OR site:asahi.com',
       search_depth: 'basic',
       topic: 'news',
       days: 1,
       max_results: 8,
       include_answer: false,
-      language: 'ja',
+      
     })
   });
   if (!res.ok) {
