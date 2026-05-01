@@ -299,9 +299,13 @@ async function analyze() {
       renderSimple(headline, newsItems);
       saveHistory(headline, input, 'simple', { newsItems });
     } else {
-      const analysis = await fetchAnalysis(headline, lead, newsItems, keys.openai);
-      renderFull(headline, newsItems, analysis);
-      saveHistory(headline, input, 'full', { newsItems, analysis });
+      // フルモード：AI分析とタイトル翻訳を並行実行
+      const [analysis, translatedItems] = await Promise.all([
+        fetchAnalysis(headline, lead, newsItems, keys.openai),
+        translateTitles(newsItems, keys.openai),
+      ]);
+      renderFull(headline, translatedItems, analysis);
+      saveHistory(headline, input, 'full', { newsItems: translatedItems, analysis });
     }
   } catch (e) {
     document.getElementById('results').innerHTML =
@@ -320,13 +324,12 @@ async function fetchNews(query, apiKey) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       api_key: apiKey,
-      query: query + ' site:nikkei.com OR site:reuters.com/ja OR site:bloomberg.co.jp OR site:nhk.or.jp OR site:toyokeizai.net OR site:mainichi.jp OR site:asahi.com',
+      query: query,
       search_depth: 'basic',
       topic: 'news',
       days: 1,
       max_results: 8,
       include_answer: false,
-      
     })
   });
   if (!res.ok) {
@@ -342,10 +345,44 @@ async function fetchNews(query, apiKey) {
   }));
 }
 
+// 英語タイトルを日本語に翻訳
+async function translateTitles(newsItems, apiKey) {
+  const englishItems = newsItems.filter(n => /[a-zA-Z]/.test(n.title) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(n.title));
+  if (!englishItems.length) return newsItems;
+
+  const titlesToTranslate = englishItems.map((n, i) => `${i+1}. ${n.title}`).join('\n');
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      max_tokens: 500,
+      messages: [
+        { role: 'system', content: '以下のニュースタイトルを自然な日本語に翻訳してください。番号付きリストのまま返してください。翻訳のみ出力してください。' },
+        { role: 'user', content: titlesToTranslate }
+      ]
+    })
+  });
+  if (!res.ok) return newsItems;
+
+  const data = await res.json();
+  const translated = data.choices[0].message.content.split('\n').filter(l => l.trim());
+
+  let idx = 0;
+  return newsItems.map(item => {
+    const isEnglish = /[a-zA-Z]/.test(item.title) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(item.title);
+    if (isEnglish && idx < translated.length) {
+      const line = translated[idx++].replace(/^\d+\.\s*/, '').trim();
+      return { ...item, title: line || item.title };
+    }
+    return item;
+  });
+}
+
 async function fetchAnalysis(headline, lead, newsItems, apiKey) {
   const newsContext = newsItems.map((n, i) => `[${i+1}] ${n.title}\n${n.snippet}`).join('\n\n');
   const userContent = `見出し：${headline}${lead ? `\nリード文：${lead}` : ''}\n\n関連ニュース（24時間以内）：\n${newsContext}`;
-
   const system = `あなたは日本経済・金融の専門家です。日経新聞の見出しと関連ニュースをもとに分析し、必ず以下のJSON形式のみで返答してください。前置き・Markdownコードブロック不要。JSONのみ出力。すべて日本語で回答してください。
 
 {
@@ -363,10 +400,7 @@ async function fetchAnalysis(headline, lead, newsItems, apiKey) {
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       max_tokens: 1000,
@@ -403,16 +437,17 @@ function renderSimple(headline, newsItems) {
   document.getElementById('results').innerHTML = headlineCard(headline) + newsCard(newsItems);
 }
 
+// フルモード：AI分析を先に、ニュースリンクを後に表示
 function renderFull(headline, newsItems, analysis) {
   document.getElementById('results').innerHTML = `
     ${headlineCard(headline)}
-    ${newsCard(newsItems)}
     <div class="analysis-sections">
       ${analysisCard('📰','icon-blue','要約・解説','summary-body',`<p>${escHtml(analysis.summary)}</p>`)}
       ${analysisCard('🌏','icon-green','背景にある知識とその影響','bg-body',`<p>${escHtml(analysis.background)}</p>`)}
       ${analysisCard('📊','icon-red','業界・企業・個人への影響','impact-body',impactHTML(analysis.impact))}
       ${analysisCard('📖','icon-gold','用語解説','terms-body',termsHTML(analysis.terms))}
-    </div>`;
+    </div>
+    ${newsCard(newsItems)}`;
 }
 
 function headlineCard(headline) {
