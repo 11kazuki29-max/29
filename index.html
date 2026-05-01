@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nikkei Lens — 日経見出し分析</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f4f5f7;--surface:#fff;--surface2:#f0f1f4;--border:#e0e3eb;--border2:#cdd1db;
+    --accent:#1a56db;--accent-bg:#eef3fd;--accent-light:#bfdbfe;
+    --gold:#b45309;--gold-bg:#fef9ee;--green:#047857;--green-bg:#ecfdf5;
+    --red:#b91c1c;--red-bg:#fef2f2;--text:#111827;--text-sub:#374151;
+    --text-dim:#6b7280;--text-muted:#9ca3af;--radius:14px;
+    --shadow:0 1px 4px rgba(0,0,0,0.07),0 4px 16px rgba(0,0,0,0.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;font-weight:400;min-height:100vh;line-height:1.75;}
+
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-mark{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:700;font-family:'Noto Serif JP',serif;}
+  .logo-name{font-family:'Noto Serif JP',serif;font-size:17px;font-weight:700;color:var(--text);}
+  .logo-tag{font-size:10px;font-family:'DM Mono',monospace;color:var(--text-muted);letter-spacing:.15em;text-transform:uppercase;}
+  .header-right{display:flex;align-items:center;gap:10px;}
+  .mode-toggle{display:flex;background:var(--surface2);border:1px solid var(--border2);border-radius:999px;padding:3px;gap:2px;}
+  .mode-btn{padding:5px 16px;border-radius:999px;border:none;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;transition:all .2s;background:transparent;color:var(--text-dim);letter-spacing:.05em;}
+  .mode-btn.active-simple{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.1);}
+  .mode-btn.active-full{background:var(--accent);color:#fff;box-shadow:0 1px 4px rgba(26,86,219,.3);}
+  .history-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);font-size:12px;font-family:'DM Mono',monospace;color:var(--text-dim);cursor:pointer;transition:all .15s;letter-spacing:.05em;}
+  .history-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+
+  main{max-width:760px;margin:0 auto;padding:36px 20px 80px;}
+
+  .mode-banner{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;font-size:12px;margin-bottom:16px;border:1px solid;}
+  .mode-banner.simple{background:var(--surface2);border-color:var(--border2);color:var(--text-dim);}
+  .mode-banner.full{background:var(--accent-bg);border-color:var(--accent-light);color:var(--accent);}
+  .mode-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .simple .mode-dot{background:var(--text-muted);}
+  .full .mode-dot{background:var(--accent);}
+
+  .input-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:16px;}
+  .input-label{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;display:block;}
+  .input-hint{font-size:12px;color:var(--text-muted);margin-bottom:10px;display:block;}
+  .main-input{width:100%;border:1.5px solid var(--border2);border-radius:10px;padding:14px 16px;font-size:14px;font-family:'Noto Sans JP',sans-serif;color:var(--text);background:var(--surface2);outline:none;resize:vertical;transition:border-color .2s,background .2s;min-height:110px;line-height:1.7;}
+  .main-input:focus{border-color:var(--accent);background:#fff;}
+  .main-input::placeholder{color:var(--text-muted);}
+  .input-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:10px;}
+  .examples{display:flex;flex-wrap:wrap;gap:6px;}
+  .example-chip{font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--border2);background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap;}
+  .example-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+  .analyze-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;transition:opacity .2s,transform .15s;white-space:nowrap;}
+  .analyze-btn:hover{opacity:.88;}
+  .analyze-btn:active{transform:scale(.97);}
+  .analyze-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+  .settings-toggle{display:flex;align-items:center;gap:6px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);cursor:pointer;padding:8px 0;letter-spacing:.05em;margin-bottom:4px;width:fit-content;user-select:none;}
+  .settings-toggle:hover{color:var(--text-dim);}
+  .settings-chevron{font-size:10px;transition:transform .2s;display:inline-block;}
+  .settings-chevron.open{transform:rotate(180deg);}
+  .settings-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:16px;box-shadow:var(--shadow);display:none;}
+  .settings-panel.open{display:block;}
+  .api-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(max-width:600px){.api-grid{grid-template-columns:1fr;}}
+  .api-field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:5px;font-family:'DM Mono',monospace;letter-spacing:.05em;}
+  .api-input{width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text);background:var(--surface2);outline:none;transition:border-color .2s,background .2s;}
+  .api-input:focus{border-color:var(--accent);background:#fff;}
+  .api-input::placeholder{color:var(--text-muted);}
+  .settings-save-btn{margin-top:12px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;transition:opacity .2s;letter-spacing:.05em;}
+  .settings-save-btn:hover{opacity:.88;}
+  .settings-notice{margin-top:10px;font-size:11px;color:var(--text-muted);line-height:1.6;}
+
+  .result-headline{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius);padding:18px 22px;margin-bottom:12px;box-shadow:var(--shadow);}
+  .result-hl-label{font-size:10px;font-family:'DM Mono',monospace;color:var(--text-muted);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
+  .result-hl-text{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:700;color:var(--text);line-height:1.5;}
+
+  .news-section,.analysis-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;animation:fadeUp .35s ease both;}
+  .analysis-sections{display:flex;flex-direction:column;}
+  .analysis-card:nth-child(1){animation-delay:.06s;}
+  .analysis-card:nth-child(2){animation-delay:.12s;}
+  .analysis-card:nth-child(3){animation-delay:.18s;}
+  .analysis-card:nth-child(4){animation-delay:.24s;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .section-header{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);}
+  .section-icon{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+  .icon-blue{background:var(--accent-bg);}
+  .icon-green{background:var(--green-bg);}
+  .icon-red{background:var(--red-bg);}
+  .icon-gold{background:var(--gold-bg);}
+  .icon-gray{background:var(--surface2);}
+  .section-title{font-size:14px;font-weight:700;color:var(--text);flex:1;}
+  .section-copy-btn{display:flex;align-items:center;gap:5px;font-size:11px;font-family:'DM Mono',monospace;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;letter-spacing:.05em;}
+  .section-copy-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+  .section-copy-btn.copied{border-color:var(--green);color:var(--green);background:var(--green-bg);}
+  .section-body{padding:16px 20px;font-size:14px;color:var(--text-sub);line-height:1.85;}
+
+  .news-list{display:flex;flex-direction:column;}
+  .news-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+  .news-item:last-child{border-bottom:none;padding-bottom:0;}
+  .news-num{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);min-width:20px;padding-top:2px;}
+  .news-content{flex:1;}
+  .news-title{font-size:13px;font-weight:500;color:var(--text);text-decoration:none;line-height:1.5;display:block;transition:color .15s;}
+  .news-title:hover{color:var(--accent);}
+  .news-source{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:3px;display:block;}
+
+  .impact-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+  .impact-tag{font-size:11px;font-family:'DM Mono',monospace;padding:3px 10px;border-radius:999px;border:1px solid;}
+  .tag-pos{background:var(--green-bg);color:var(--green);border-color:#6ee7b7;}
+  .tag-neg{background:var(--red-bg);color:var(--red);border-color:#fca5a5;}
+  .tag-neu{background:var(--surface2);color:var(--text-dim);border-color:var(--border2);}
+
+  .term-list{display:flex;flex-direction:column;gap:14px;}
+  .term-word{font-weight:700;font-size:14px;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:8px;}
+  .term-word::before{content:'';display:inline-block;width:3px;height:14px;background:var(--gold);border-radius:2px;flex-shrink:0;}
+  .term-def{font-size:13px;color:var(--text-dim);padding-left:11px;}
+
+  .skeleton{background:linear-gradient(90deg,var(--surface2) 25%,#e8eaef 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.3s infinite;border-radius:6px;height:14px;margin-bottom:10px;}
+  @keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+  .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:300;opacity:0;pointer-events:none;transition:opacity .25s;}
+  .drawer-overlay.open{opacity:1;pointer-events:all;}
+  .drawer{position:fixed;top:0;right:-400px;width:380px;max-width:100vw;height:100vh;background:var(--surface);border-left:1px solid var(--border);box-shadow:-4px 0 24px rgba(0,0,0,.1);z-index:400;transition:right .3s ease;display:flex;flex-direction:column;}
+  .drawer.open{right:0;}
+  .drawer-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .drawer-title{font-size:14px;font-weight:700;}
+  .drawer-close{width:28px;height:28px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:var(--text-dim);transition:all .15s;}
+  .drawer-close:hover{background:var(--red-bg);border-color:#fca5a5;color:var(--red);}
+  .drawer-body{flex:1;overflow-y:auto;padding:12px;}
+  .drawer-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--text-muted);font-size:13px;gap:8px;}
+  .history-item{padding:12px 14px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--surface);}
+  .history-item:hover{border-color:var(--accent);background:var(--accent-bg);}
+  .history-item-headline{font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px;line-height:1.4;}
+  .history-item-meta{display:flex;align-items:center;gap:8px;}
+  .history-item-mode{font-size:10px;font-family:'DM Mono',monospace;padding:1px 7px;border-radius:999px;border:1px solid;}
+  .hmode-simple{background:var(--surface2);color:var(--text-muted);border-color:var(--border2);}
+  .hmode-full{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-light);}
+  .history-item-date{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);}
+  .drawer-footer{padding:12px;border-top:1px solid var(--border);flex-shrink:0;}
+  .clear-history-btn{width:100%;padding:9px;border-radius:8px;border:1px solid #fca5a5;background:var(--red-bg);color:var(--red);font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;transition:opacity .2s;letter-spacing:.05em;}
+  .clear-history-btn:hover{opacity:.8;}
+</style>
+</head>
+<body>
+
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <span class="drawer-title">📋 分析履歴</span>
+    <div class="drawer-close" onclick="closeDrawer()">✕</div>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+  <div class="drawer-footer">
+    <button class="clear-history-btn" onclick="clearHistory()">履歴をすべて削除</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">N</div>
+    <div class="logo-name">Nikkei Lens</div>
+    <div class="logo-tag">見出し分析</div>
+  </div>
+  <div class="header-right">
+    <button class="history-btn" onclick="openDrawer()">📋 履歴</button>
+    <div class="mode-toggle">
+      <button class="mode-btn active-simple" id="btn-simple" onclick="setMode('simple')">簡易</button>
+      <button class="mode-btn" id="btn-full" onclick="setMode('full')">フル ✦</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div class="input-section">
+    <span class="input-label">見出し・リード文を貼り付け</span>
+    <span class="input-hint">見出しだけでもOK。リード文も続けて貼り付けると分析精度が上がります。</span>
+    <textarea id="main-input" class="main-input" rows="4"
+      placeholder="例：日銀、追加利上げを決定　政策金利0.5%に
+
+（リード文があればそのまま続けて貼り付けてください）"></textarea>
+    <div class="input-footer">
+      <div class="examples">
+        <span class="example-chip" onclick="setEx(this)">日銀、追加利上げを決定</span>
+        <span class="example-chip" onclick="setEx(this)">トヨタ、EV投資を3兆円に拡大</span>
+        <span class="example-chip" onclick="setEx(this)">半導体輸出規制、米が追加強化</span>
+        <span class="example-chip" onclick="setEx(this)">インフレ率2%超が3年連続</span>
+      </div>
+      <button class="analyze-btn" id="analyze-btn" onclick="analyze()">分析する →</button>
+    </div>
+  </div>
+
+  <div id="mode-banner" class="mode-banner simple">
+    <span class="mode-dot"></span>
+    <span id="mode-banner-text">簡易モード：24時間以内の関連ニュースを検索して一覧表示します。APIコストはかかりません。</span>
+  </div>
+
+  <div class="settings-toggle" onclick="toggleSettings()">
+    <span>⚙ API設定</span>
+    <span class="settings-chevron" id="settings-chevron">▼</span>
+  </div>
+  <div class="settings-panel" id="settings-panel">
+    <div class="api-grid">
+      <div class="api-field">
+        <label>Tavily API Key（両モード共通・ニュース検索用）</label>
+        <input type="password" class="api-input" id="tavily-key" placeholder="tvly-..." />
+      </div>
+      <div class="api-field">
+        <label>OpenAI API Key（フルモードのAI分析用）</label>
+        <input type="password" class="api-input" id="openai-key" placeholder="sk-..." />
+      </div>
+    </div>
+    <button class="settings-save-btn" onclick="saveKeys()">保存する</button>
+    <div class="settings-notice">※ キーはブラウザのローカルストレージに保存されます。他の人と共有しないでください。</div>
+  </div>
+
+  <div id="results"></div>
+
+</main>
+
+<script>
+let currentMode = 'simple';
+const STORAGE_KEY = 'nikkei_lens_history';
+const KEYS_KEY    = 'nikkei_lens_keys';
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = JSON.parse(localStorage.getItem(KEYS_KEY) || '{}');
+  if (saved.tavily) document.getElementById('tavily-key').value = saved.tavily;
+  if (saved.openai) document.getElementById('openai-key').value = saved.openai;
+});
+
+function toggleSettings() {
+  const panel   = document.getElementById('settings-panel');
+  const chevron = document.getElementById('settings-chevron');
+  const isOpen  = panel.classList.toggle('open');
+  chevron.classList.toggle('open', isOpen);
+}
+
+function saveKeys() {
+  const keys = {
+    tavily: document.getElementById('tavily-key').value.trim(),
+    openai: document.getElementById('openai-key').value.trim(),
+  };
+  localStorage.setItem(KEYS_KEY, JSON.stringify(keys));
+  const btn = event.target;
+  btn.textContent = '✓ 保存しました';
+  setTimeout(() => { btn.textContent = '保存する'; }, 1500);
+}
+
+function getKeys() {
+  return JSON.parse(localStorage.getItem(KEYS_KEY) || '{}');
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('btn-simple').className = 'mode-btn' + (mode === 'simple' ? ' active-simple' : '');
+  document.getElementById('btn-full').className   = 'mode-btn' + (mode === 'full'   ? ' active-full'   : '');
+  const banner = document.getElementById('mode-banner');
+  const text   = document.getElementById('mode-banner-text');
+  if (mode === 'simple') {
+    banner.className = 'mode-banner simple';
+    text.textContent = '簡易モード：24時間以内の関連ニュースを検索して一覧表示します。APIコストはかかりません。';
+  } else {
+    banner.className = 'mode-banner full';
+    text.textContent = 'フルモード：ニュース一覧に加え、AIが要約・背景・影響・用語解説をすべて分析します。';
+  }
+}
+
+function setEx(el) {
+  document.getElementById('main-input').value = el.textContent;
+}
+
+async function analyze() {
+  const input = document.getElementById('main-input').value.trim();
+  if (!input) return;
+
+  const keys = getKeys();
+  if (!keys.tavily) {
+    alert('⚙ API設定を開いて Tavily API Key を入力・保存してください。');
+    toggleSettings();
+    return;
+  }
+  if (currentMode === 'full' && !keys.openai) {
+    alert('フルモードには OpenAI API Key が必要です。⚙ API設定から入力・保存してください。');
+    toggleSettings();
+    return;
+  }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true; btn.textContent = '分析中…';
+  showSkeleton();
+
+  const lines    = input.split('\n').filter(l => l.trim());
+  const headline = lines[0];
+  const lead     = lines.slice(1).join('\n').trim();
+
+  try {
+    const newsItems = await fetchNews(headline, keys.tavily);
+    if (currentMode === 'simple') {
+      renderSimple(headline, newsItems);
+      saveHistory(headline, input, 'simple', { newsItems });
+    } else {
+      const analysis = await fetchAnalysis(headline, lead, newsItems, keys.openai);
+      renderFull(headline, newsItems, analysis);
+      saveHistory(headline, input, 'full', { newsItems, analysis });
+    }
+  } catch (e) {
+    document.getElementById('results').innerHTML =
+      `<div style="background:#fff;border:1px solid #fca5a5;border-radius:14px;padding:28px;text-align:center;color:#b91c1c;font-size:14px;">
+        ⚠ エラーが発生しました：${escHtml(e.message)}<br>
+        <span style="font-size:12px;color:#9ca3af;margin-top:6px;display:block;">APIキーや接続を確認してください。</span>
+      </div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '分析する →';
+  }
+}
+
+async function fetchNews(query, apiKey) {
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query: query + ' 日本語',
+      search_depth: 'basic',
+      topic: 'news',
+      days: 1,
+      max_results: 8,
+      include_answer: false,
+      language: 'ja',
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Tavily API エラー (${res.status})${err.detail ? '：' + err.detail : ''}`);
+  }
+  const data = await res.json();
+  return (data.results || []).map(item => ({
+    title:   item.title,
+    url:     item.url,
+    source:  new URL(item.url).hostname,
+    snippet: item.content || '',
+  }));
+}
+
+async function fetchAnalysis(headline, lead, newsItems, apiKey) {
+  const newsContext = newsItems.map((n, i) => `[${i+1}] ${n.title}\n${n.snippet}`).join('\n\n');
+  const userContent = `見出し：${headline}${lead ? `\nリード文：${lead}` : ''}\n\n関連ニュース（24時間以内）：\n${newsContext}`;
+
+  const system = `あなたは日本経済・金融の専門家です。日経新聞の見出しと関連ニュースをもとに分析し、必ず以下のJSON形式のみで返答してください。前置き・Markdownコードブロック不要。JSONのみ出力。すべて日本語で回答してください。
+
+{
+  "summary": "記事の要約と解説（2〜3文、わかりやすく）",
+  "background": "この出来事の背景にある知識・文脈、およびその背景が現在の経済・社会にどう影響しているかの解説（3〜4文）",
+  "impact": {
+    "description": "業界・企業・個人それぞれへの具体的な影響（3〜4文）",
+    "tags": [{"label": "タグ名", "type": "pos|neg|neu"}]
+  },
+  "terms": [
+    {"word": "用語名", "definition": "中学生にもわかる平易な説明"},
+    {"word": "用語名2", "definition": "説明"}
+  ]
+}`;
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      max_tokens: 1000,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userContent }
+      ]
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`OpenAI API エラー (${res.status})${err.error?.message ? '：' + err.error.message : ''}`);
+  }
+  const data = await res.json();
+  const text = data.choices[0].message.content;
+  return JSON.parse(text.replace(/```json|```/g, '').trim());
+}
+
+function showSkeleton() {
+  document.getElementById('results').innerHTML = `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:var(--shadow);margin-bottom:12px">
+      <div class="skeleton" style="width:30%;height:11px;margin-bottom:14px"></div>
+      <div class="skeleton" style="width:88%"></div>
+      <div class="skeleton" style="width:70%;margin-bottom:0"></div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:var(--shadow)">
+      <div class="skeleton" style="width:25%;height:11px;margin-bottom:14px"></div>
+      <div class="skeleton" style="width:80%"></div>
+      <div class="skeleton" style="width:60%;margin-bottom:0"></div>
+    </div>`;
+}
+
+function renderSimple(headline, newsItems) {
+  document.getElementById('results').innerHTML = headlineCard(headline) + newsCard(newsItems);
+}
+
+function renderFull(headline, newsItems, analysis) {
+  document.getElementById('results').innerHTML = `
+    ${headlineCard(headline)}
+    ${newsCard(newsItems)}
+    <div class="analysis-sections">
+      ${analysisCard('📰','icon-blue','要約・解説','summary-body',`<p>${escHtml(analysis.summary)}</p>`)}
+      ${analysisCard('🌏','icon-green','背景にある知識とその影響','bg-body',`<p>${escHtml(analysis.background)}</p>`)}
+      ${analysisCard('📊','icon-red','業界・企業・個人への影響','impact-body',impactHTML(analysis.impact))}
+      ${analysisCard('📖','icon-gold','用語解説','terms-body',termsHTML(analysis.terms))}
+    </div>`;
+}
+
+function headlineCard(headline) {
+  return `<div class="result-headline"><div class="result-hl-label">分析対象の見出し</div><div class="result-hl-text">${escHtml(headline)}</div></div>`;
+}
+
+function newsCard(items) {
+  if (!items.length) {
+    return `<div class="news-section"><div class="section-body" style="color:var(--text-muted);text-align:center;padding:24px;">関連ニュースが見つかりませんでした。</div></div>`;
+  }
+  const newsHtml = items.map((n, i) => `
+    <div class="news-item">
+      <span class="news-num">${i+1}</span>
+      <div class="news-content">
+        <a href="${escHtml(n.url)}" target="_blank" rel="noopener" class="news-title">${escHtml(n.title)}</a>
+        <span class="news-source">${escHtml(n.source)} ↗</span>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="news-section">
+      <div class="section-header">
+        <div class="section-icon icon-gray">🔍</div>
+        <div class="section-title">24時間以内の関連ニュース</div>
+        <button class="section-copy-btn" onclick="copyNewsLinks(this)">コピー</button>
+      </div>
+      <div class="section-body">
+        <div class="news-list" id="news-list-data" data-items='${encodeURIComponent(JSON.stringify(items))}'>${newsHtml}</div>
+      </div>
+    </div>`;
+}
+
+function analysisCard(icon, iconClass, title, bodyId, html) {
+  return `
+    <div class="analysis-card">
+      <div class="section-header">
+        <div class="section-icon ${iconClass}">${icon}</div>
+        <div class="section-title">${title}</div>
+        <button class="section-copy-btn" onclick="copySection('${bodyId}',this)">コピー</button>
+      </div>
+      <div class="section-body" id="${bodyId}">${html}</div>
+    </div>`;
+}
+
+function impactHTML(impact) {
+  const tags = (impact.tags||[]).map(t=>`<span class="impact-tag tag-${t.type}">${escHtml(t.label)}</span>`).join('');
+  return `<div class="impact-tags">${tags}</div><p>${escHtml(impact.description)}</p>`;
+}
+
+function termsHTML(terms) {
+  return `<div class="term-list">${(terms||[]).map(t=>`
+    <div class="term-item">
+      <div class="term-word">${escHtml(t.word)}</div>
+      <div class="term-def">${escHtml(t.definition)}</div>
+    </div>`).join('')}</div>`;
+}
+
+function copySection(bodyId, btn) {
+  const el = document.getElementById(bodyId);
+  if (!el) return;
+  navigator.clipboard.writeText(el.innerText).then(() => {
+    btn.textContent = '✓ コピー済み'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+function copyNewsLinks(btn) {
+  const el = document.getElementById('news-list-data');
+  if (!el) return;
+  const items = JSON.parse(decodeURIComponent(el.dataset.items || '[]'));
+  const text = items.map((n,i) => `${i+1}. ${n.title}\n   ${n.url}`).join('\n\n');
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ コピー済み'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+function getHistory() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+
+function saveHistory(headline, input, mode, data) {
+  const history = getHistory();
+  history.unshift({
+    id: Date.now(), headline, input, mode, data,
+    date: new Date().toLocaleString('ja-JP', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 50)));
+}
+
+function openDrawer() {
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('open');
+  renderDrawer();
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+function renderDrawer() {
+  const history = getHistory();
+  const body = document.getElementById('drawer-body');
+  if (!history.length) {
+    body.innerHTML = `<div class="drawer-empty"><span>📭</span><span>履歴はまだありません</span></div>`;
+    return;
+  }
+  body.innerHTML = history.map(h => `
+    <div class="history-item" onclick="loadHistory(${h.id})">
+      <div class="history-item-headline">${escHtml(h.headline)}</div>
+      <div class="history-item-meta">
+        <span class="history-item-mode hmode-${h.mode}">${h.mode==='full'?'フル':'簡易'}</span>
+        <span class="history-item-date">${h.date}</span>
+      </div>
+    </div>`).join('');
+}
+
+function loadHistory(id) {
+  const item = getHistory().find(h => h.id === id);
+  if (!item) return;
+  document.getElementById('main-input').value = item.input || item.headline;
+  setMode(item.mode);
+  closeDrawer();
+  const lines = (item.input || item.headline).split('\n').filter(l => l.trim());
+  const headline = lines[0];
+  if (item.mode === 'simple') renderSimple(headline, item.data.newsItems || []);
+  else renderFull(headline, item.data.newsItems || [], item.data.analysis);
+}
+
+function clearHistory() {
+  if (!confirm('履歴をすべて削除しますか？')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  renderDrawer();
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
