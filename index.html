@@ -337,7 +337,7 @@ async function fetchNews(query, apiKey) {
   }
   const data = await res.json();
   return (data.results || [])
-    .filter(item => (item.score || 0) >= 0.5)
+    .filter(item => (item.score || 0) >= 0.3)
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, 3)
     .map(item => ({
