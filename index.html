@@ -300,10 +300,12 @@ async function analyze() {
       renderSimple(headline, newsItems);
       saveHistory(headline, input, 'simple', { newsItems });
     } else {
-      // フルモード：分析＋翻訳を1回のAPI呼び出しにまとめる
+      // フルモード：ニュースが0件でも分析は続ける。翻訳＋分析を1回のAPI呼び出しで実行
       const result = await fetchAnalysisAndTranslate(headline, lead, rawItems, keys.openai);
-      renderFull(headline, result.newsItems, result.analysis);
-      saveHistory(headline, input, 'full', { newsItems: result.newsItems, analysis: result.analysis });
+      // rawItemsが空でもresult.newsItemsにrawItemsを渡して表示
+      const finalNewsItems = result.newsItems && result.newsItems.length > 0 ? result.newsItems : rawItems;
+      renderFull(headline, finalNewsItems, result.analysis);
+      saveHistory(headline, input, 'full', { newsItems: finalNewsItems, analysis: result.analysis });
     }
   } catch (e) {
     document.getElementById('results').innerHTML =
