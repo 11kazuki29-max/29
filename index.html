@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -92,16 +93,16 @@
   .section-copy-btn{display:flex;align-items:center;gap:5px;font-size:11px;font-family:'DM Mono',monospace;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:all .15s;letter-spacing:.05em;}
   .section-copy-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
   .section-copy-btn.copied{border-color:var(--green);color:var(--green);background:var(--green-bg);}
-  .section-body{padding:16px 20px;font-size:14px;color:var(--text-sub);line-height:1.85;}
+  .section-body{padding:14px 20px;font-size:14px;color:var(--text-sub);line-height:1.85;}
 
   .news-list{display:flex;flex-direction:column;}
-  .news-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+  .news-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
   .news-item:last-child{border-bottom:none;padding-bottom:0;}
-  .news-num{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);min-width:20px;padding-top:2px;}
-  .news-content{flex:1;}
-  .news-title{font-size:13px;font-weight:500;color:var(--text);text-decoration:none;line-height:1.5;display:block;transition:color .15s;}
+  .news-num{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);min-width:18px;padding-top:2px;flex-shrink:0;}
+  .news-content{flex:1;min-width:0;}
+  .news-title{font-size:13px;font-weight:500;color:var(--text);text-decoration:none;line-height:1.45;display:block;transition:color .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .news-title:hover{color:var(--accent);}
-  .news-source{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:3px;display:block;}
+  .news-source{font-size:10px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:2px;display:block;}
 
   .impact-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
   .impact-tag{font-size:11px;font-family:'DM Mono',monospace;padding:3px 10px;border-radius:999px;border:1px solid;}
@@ -109,8 +110,8 @@
   .tag-neg{background:var(--red-bg);color:var(--red);border-color:#fca5a5;}
   .tag-neu{background:var(--surface2);color:var(--text-dim);border-color:var(--border2);}
 
-  .term-list{display:flex;flex-direction:column;gap:14px;}
-  .term-word{font-weight:700;font-size:14px;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:8px;}
+  .term-list{display:flex;flex-direction:column;gap:12px;}
+  .term-word{font-weight:700;font-size:14px;color:var(--text);margin-bottom:2px;display:flex;align-items:center;gap:8px;}
   .term-word::before{content:'';display:inline-block;width:3px;height:14px;background:var(--gold);border-radius:2px;flex-shrink:0;}
   .term-def{font-size:13px;color:var(--text-dim);padding-left:11px;}
 
@@ -170,7 +171,6 @@
 </header>
 
 <main>
-
   <div class="input-section">
     <span class="input-label">見出し・リード文を貼り付け</span>
     <span class="input-hint">見出しだけでもOK。リード文も続けて貼り付けると分析精度が上がります。</span>
@@ -205,7 +205,7 @@
         <input type="password" class="api-input" id="tavily-key" placeholder="tvly-..." />
       </div>
       <div class="api-field">
-        <label>OpenAI API Key（フルモードのAI分析用）</label>
+        <label>OpenAI API Key（フルモード・翻訳用）</label>
         <input type="password" class="api-input" id="openai-key" placeholder="sk-..." />
       </div>
     </div>
@@ -214,7 +214,6 @@
   </div>
 
   <div id="results"></div>
-
 </main>
 
 <script>
@@ -276,13 +275,11 @@ async function analyze() {
   const keys = getKeys();
   if (!keys.tavily) {
     alert('⚙ API設定を開いて Tavily API Key を入力・保存してください。');
-    toggleSettings();
-    return;
+    toggleSettings(); return;
   }
   if (currentMode === 'full' && !keys.openai) {
     alert('フルモードには OpenAI API Key が必要です。⚙ API設定から入力・保存してください。');
-    toggleSettings();
-    return;
+    toggleSettings(); return;
   }
 
   const btn = document.getElementById('analyze-btn');
@@ -294,18 +291,19 @@ async function analyze() {
   const lead     = lines.slice(1).join('\n').trim();
 
   try {
-    const newsItems = await fetchNews(headline, keys.tavily);
+    // Step1: Tavilyでニュース取得
+    const rawItems = await fetchNews(headline, keys.tavily);
+
     if (currentMode === 'simple') {
+      // 簡易モード：OpenAIキーがあれば翻訳、なければそのまま表示
+      const newsItems = keys.openai ? await translateTitles(rawItems, keys.openai) : rawItems;
       renderSimple(headline, newsItems);
       saveHistory(headline, input, 'simple', { newsItems });
     } else {
-      // フルモード：AI分析とタイトル翻訳を並行実行
-      const [analysis, translatedItems] = await Promise.all([
-        fetchAnalysis(headline, lead, newsItems, keys.openai),
-        translateTitles(newsItems, keys.openai),
-      ]);
-      renderFull(headline, translatedItems, analysis);
-      saveHistory(headline, input, 'full', { newsItems: translatedItems, analysis });
+      // フルモード：分析＋翻訳を1回のAPI呼び出しにまとめる
+      const result = await fetchAnalysisAndTranslate(headline, lead, rawItems, keys.openai);
+      renderFull(headline, result.newsItems, result.analysis);
+      saveHistory(headline, input, 'full', { newsItems: result.newsItems, analysis: result.analysis });
     }
   } catch (e) {
     document.getElementById('results').innerHTML =
@@ -318,6 +316,7 @@ async function analyze() {
   }
 }
 
+// Tavilyでニュース取得（スコア0.5以上・上位3件）
 async function fetchNews(query, apiKey) {
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -328,7 +327,7 @@ async function fetchNews(query, apiKey) {
       search_depth: 'basic',
       topic: 'news',
       days: 1,
-      max_results: 8,
+      max_results: 10,
       include_answer: false,
     })
   });
@@ -337,27 +336,33 @@ async function fetchNews(query, apiKey) {
     throw new Error(`Tavily API エラー (${res.status})${err.detail ? '：' + err.detail : ''}`);
   }
   const data = await res.json();
-  return (data.results || []).map(item => ({
-    title:   item.title,
-    url:     item.url,
-    source:  new URL(item.url).hostname,
-    snippet: item.content || '',
-  }));
+  return (data.results || [])
+    .filter(item => (item.score || 0) >= 0.5)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 3)
+    .map(item => ({
+      title:   item.title,
+      url:     item.url,
+      source:  new URL(item.url).hostname,
+      snippet: item.content || '',
+      score:   item.score || 0,
+    }));
 }
 
-// 英語タイトルを日本語に翻訳
+// 簡易モード用：タイトル翻訳のみ
 async function translateTitles(newsItems, apiKey) {
-  const englishItems = newsItems.filter(n => /[a-zA-Z]/.test(n.title) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(n.title));
+  const englishItems = newsItems.filter(n =>
+    /[a-zA-Z]{4,}/.test(n.title) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(n.title)
+  );
   if (!englishItems.length) return newsItems;
 
   const titlesToTranslate = englishItems.map((n, i) => `${i+1}. ${n.title}`).join('\n');
-
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      max_tokens: 500,
+      max_tokens: 300,
       messages: [
         { role: 'system', content: '以下のニュースタイトルを自然な日本語に翻訳してください。番号付きリストのまま返してください。翻訳のみ出力してください。' },
         { role: 'user', content: titlesToTranslate }
@@ -365,13 +370,11 @@ async function translateTitles(newsItems, apiKey) {
     })
   });
   if (!res.ok) return newsItems;
-
   const data = await res.json();
   const translated = data.choices[0].message.content.split('\n').filter(l => l.trim());
-
   let idx = 0;
   return newsItems.map(item => {
-    const isEnglish = /[a-zA-Z]/.test(item.title) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(item.title);
+    const isEnglish = /[a-zA-Z]{4,}/.test(item.title) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(item.title);
     if (isEnglish && idx < translated.length) {
       const line = translated[idx++].replace(/^\d+\.\s*/, '').trim();
       return { ...item, title: line || item.title };
@@ -380,14 +383,24 @@ async function translateTitles(newsItems, apiKey) {
   });
 }
 
-async function fetchAnalysis(headline, lead, newsItems, apiKey) {
+// フルモード：分析＋翻訳を1回のAPI呼び出しにまとめる
+async function fetchAnalysisAndTranslate(headline, lead, newsItems, apiKey) {
   const newsContext = newsItems.map((n, i) => `[${i+1}] ${n.title}\n${n.snippet}`).join('\n\n');
-  const userContent = `見出し：${headline}${lead ? `\nリード文：${lead}` : ''}\n\n関連ニュース（24時間以内）：\n${newsContext}`;
+  const englishTitles = newsItems
+    .map((n, i) => ({ idx: i, title: n.title }))
+    .filter(n => /[a-zA-Z]{4,}/.test(n.title) && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(n.title));
+
+  const translateInstruction = englishTitles.length > 0
+    ? `\n\nさらに、以下の英語タイトルを日本語に翻訳してください（"translations"キーに配列で返す）：\n${englishTitles.map(n => `[${n.idx}] ${n.title}`).join('\n')}`
+    : '';
+
+  const userContent = `見出し：${headline}${lead ? `\nリード文：${lead}` : ''}\n\n関連ニュース（24時間以内）：\n${newsContext}${translateInstruction}`;
+
   const system = `あなたは日本経済・金融の専門家です。日経新聞の見出しと関連ニュースをもとに分析し、必ず以下のJSON形式のみで返答してください。前置き・Markdownコードブロック不要。JSONのみ出力。すべて日本語で回答してください。
 
 {
-  "summary": "記事の要約と解説（2〜3文、わかりやすく）",
-  "background": "この出来事の背景にある知識・文脈、およびその背景が現在の経済・社会にどう影響しているかの解説（3〜4文）",
+  "summary": "記事の要約と解説（2〜3文）",
+  "background": "背景にある知識・文脈、およびその背景が現在の経済・社会にどう影響しているかの解説（3〜4文）",
   "impact": {
     "description": "業界・企業・個人それぞれへの具体的な影響（3〜4文）",
     "tags": [{"label": "タグ名", "type": "pos|neg|neu"}]
@@ -395,7 +408,8 @@ async function fetchAnalysis(headline, lead, newsItems, apiKey) {
   "terms": [
     {"word": "用語名", "definition": "中学生にもわかる平易な説明"},
     {"word": "用語名2", "definition": "説明"}
-  ]
+  ],
+  "translations": [{"idx": 0, "title": "日本語タイトル"}]
 }`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -403,7 +417,7 @@ async function fetchAnalysis(headline, lead, newsItems, apiKey) {
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      max_tokens: 1000,
+      max_tokens: 1200,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: userContent }
@@ -416,7 +430,15 @@ async function fetchAnalysis(headline, lead, newsItems, apiKey) {
   }
   const data = await res.json();
   const text = data.choices[0].message.content;
-  return JSON.parse(text.replace(/```json|```/g, '').trim());
+  const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+  // タイトルを翻訳で置き換え
+  const translatedItems = newsItems.map((item, i) => {
+    const t = (parsed.translations || []).find(t => t.idx === i);
+    return t ? { ...item, title: t.title } : item;
+  });
+
+  return { analysis: parsed, newsItems: translatedItems };
 }
 
 function showSkeleton() {
@@ -437,7 +459,6 @@ function renderSimple(headline, newsItems) {
   document.getElementById('results').innerHTML = headlineCard(headline) + newsCard(newsItems);
 }
 
-// フルモード：AI分析を先に、ニュースリンクを後に表示
 function renderFull(headline, newsItems, analysis) {
   document.getElementById('results').innerHTML = `
     ${headlineCard(headline)}
@@ -456,13 +477,13 @@ function headlineCard(headline) {
 
 function newsCard(items) {
   if (!items.length) {
-    return `<div class="news-section"><div class="section-body" style="color:var(--text-muted);text-align:center;padding:24px;">関連ニュースが見つかりませんでした。</div></div>`;
+    return `<div class="news-section"><div class="section-body" style="color:var(--text-muted);text-align:center;padding:24px;">関連性の高いニュースが見つかりませんでした。</div></div>`;
   }
   const newsHtml = items.map((n, i) => `
     <div class="news-item">
       <span class="news-num">${i+1}</span>
       <div class="news-content">
-        <a href="${escHtml(n.url)}" target="_blank" rel="noopener" class="news-title">${escHtml(n.title)}</a>
+        <a href="${escHtml(n.url)}" target="_blank" rel="noopener" class="news-title" title="${escHtml(n.title)}">${escHtml(n.title)}</a>
         <span class="news-source">${escHtml(n.source)} ↗</span>
       </div>
     </div>`).join('');
@@ -587,3 +608,4 @@ function escHtml(str) {
 </script>
 </body>
 </html>
+
